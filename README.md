@@ -1,75 +1,85 @@
-# BMSTU LKS Login
+# BMSTU LKS Login Library
 
-A Python library for authenticating with the BMSTU LKS (Personal Student Account) portal.
+A Python library for authenticating with the BMSTU LKS (Personal Student Account) portal. This library handles the authentication flow and token management for accessing the BMSTU LKS portal.
 
 ## Features
 
-- Clean and simple API for logging into BMSTU LKS
-- Proper handling of JWT and JSON tokens
-- Type hints and comprehensive documentation
-- Token validation and expiration checking
-- Returns both raw tokens and decoded information
+- Handles CAS (Central Authentication Service) login flow
+- Manages JWT and JSON tokens
+- Provides decoded token information including user details
+- Handles token expiration validation
+- Supports fixed time for testing purposes
 
 ## Installation
 
+You can install the library directly from GitHub using pip:
+
 ```bash
-pip install bmstu-lks-login
+pip install git+https://github.com/cucumber-sp/bmstu_lks_login.git
+```
+
+Or clone the repository and install in development mode:
+
+```bash
+git clone https://github.com/cucumber-sp/bmstu_lks_login.git
+cd bmstu_lks_login
+pip install -e .
 ```
 
 ## Usage
 
+Here's a basic example of how to use the library:
+
 ```python
-from datetime import datetime
-from bmstu_lks_login import BmstuLksClient
+from bmstu_lks_login import BmstuLksClient, LoginError
 
-# Create a client (optionally provide a fixed time for token validation)
-client = BmstuLksClient(current_time=datetime.now())
-
-# Log in and get tokens
 try:
+    # Create client
+    client = BmstuLksClient()
+    
+    # Attempt login
     response = client.login("username", "password")
     
     # Access token information
-    print(f"Login token expires at: {response.login_token.expiration}")
-    print(f"Student name: {response.login_token.name}")
+    print(f"Name: {response.login_token.name}")
     print(f"Student ID: {response.student_id}")
     print(f"Group: {response.group}")
-    
-    # Access raw tokens for API calls
-    login_token = response.login_token.raw_token
-    info_token = response.info_token.raw_token
+    print(f"Token expiration: {response.login_token.expiration}")
     
 except LoginError as e:
-    print(f"Login failed: {e}")
+    print(f"Login failed: {str(e)}")
 ```
-
-## Token Information
-
-The library provides two tokens:
-
-1. `portal3_login` - JWT token containing:
-   - User information (name, ID, group)
-   - Token expiration time
-   - Other authentication data
-
-2. `portal3_info` - Base64-encoded JSON token containing:
-   - User name
-   - Token expiration time
-
-Both tokens are provided in both raw and decoded form through the `TokenInfo` class.
 
 ## Dependencies
 
-- `requests` - For HTTP requests
-- `beautifulsoup4` - For parsing login form
-- `PyJWT` - For JWT token handling
+- Python 3.7+
+- requests
+- beautifulsoup4
+- PyJWT
 
 ## Development
 
+To set up the development environment:
+
 1. Clone the repository
-2. Install development dependencies: `pip install -r requirements-dev.txt`
-3. Run tests: `pytest`
+2. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+3. Install development dependencies:
+   ```bash
+   pip install -e .
+   ```
 
 ## License
 
 MIT License
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request

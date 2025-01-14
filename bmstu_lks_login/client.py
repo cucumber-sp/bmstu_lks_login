@@ -22,7 +22,7 @@ class LoginError(Exception):
 class BmstuLksClient:
     """Client for authenticating with BMSTU LKS portal."""
     
-    PORTAL_LOGIN_URL = "https://lks.bmstu.ru/login"
+    PORTAL_LOGIN_URL = "https://lks.bmstu.ru/portal3/login"
     PORTAL_PROFILE_URL = "https://lks.bmstu.ru/profile"
     
     def __init__(self, current_time: Optional[datetime] = None):
@@ -37,10 +37,15 @@ class BmstuLksClient:
         
         # Default headers for requests
         self.headers = {
-            'User-Agent': 'Mozilla/5.0',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
             'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1'
         }
     
     def _extract_form_data(self, html_content: str) -> dict:
@@ -57,14 +62,18 @@ class BmstuLksClient:
         """
         soup = BeautifulSoup(html_content, 'html.parser')
         form = soup.find('form')
-        if not form:
-            raise LoginError("Could not find login form")
-            
         form_data = {}
-        for input_tag in form.find_all('input'):
-            if input_tag.get('type') == 'hidden' and input_tag.get('name'):
-                form_data[input_tag['name']] = input_tag.get('value', '')
-                
+        
+        if form:
+            for input_tag in form.find_all(['input', 'button']):
+                name = input_tag.get('name')
+                value = input_tag.get('value', '')
+                if name:
+                    form_data[name] = value
+        
+        if not form_data:
+            raise LoginError("Could not find login form fields")
+            
         return form_data
     
     def _extract_token_from_cookie(self, cookie_str: str, token_name: str) -> Optional[str]:
@@ -82,6 +91,17 @@ class BmstuLksClient:
             return cookie_str.split(prefix)[1].split(';')[0]
         return None
     
+    def _decode_unicode_escape(self, text: str) -> str:
+        """Decode Unicode escapes in text.
+        
+        Args:
+            text: Text containing Unicode escapes.
+            
+        Returns:
+            Decoded text.
+        """
+        return text.encode('utf-8').decode('unicode-escape').encode('latin1').decode('utf-8')
+
     def _decode_portal_token(self, token: str, token_name: str) -> TokenInfo:
         """Decode and validate a portal token.
         
@@ -118,12 +138,15 @@ class BmstuLksClient:
             if current_time.timestamp() > exp_timestamp:
                 raise LoginError(f"{token_name} token has expired")
             
-            # Extract name
+            # Extract name and decode Unicode escapes
             name = None
             if token_name == "portal3_login":
-                name = decoded.get('usr', {}).get('name')
+                name = decoded.get('usr', {}).get('name', '')
             else:
-                name = decoded.get('name')
+                name = decoded.get('name', '')
+                
+            # Handle Unicode escapes
+            name = self._decode_unicode_escape(name)
             
             return TokenInfo(
                 raw_token=token,
@@ -134,7 +157,7 @@ class BmstuLksClient:
             
         except (jwt.InvalidTokenError, json.JSONDecodeError, base64.binascii.Error) as e:
             raise LoginError(f"Invalid {token_name} token: {str(e)}")
-    
+
     def login(self, username: str, password: str) -> LoginResponse:
         """Log in to BMSTU LKS portal.
         
@@ -237,7 +260,7 @@ class BmstuLksClient:
                             # Extract additional user info
                             user_info = login_token_info.decoded_data.get('usr', {})
                             student_id = user_info.get('id')
-                            group = user_info.get('alias')
+                            group = self._decode_unicode_escape(user_info.get('alias', ''))
                             
                             return LoginResponse(
                                 login_token=login_token_info,
